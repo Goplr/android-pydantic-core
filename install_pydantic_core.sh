@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # install_pydantic_core.sh
 # Automated installer for pydantic-core on Android/Termux via GitHub Releases.
-# Repo: https://github.com/Eutalix/android-pydantic-core
+# Repo: https://github.com/Goplr/android-pydantic-core
 
 set -e
 
 # --- CONFIGURATION ---
-REPO_USER="Eutalix"
+REPO_USER="Goplr"
 REPO_NAME="android-pydantic-core"
 
 # --- COLORS ---
@@ -66,6 +66,13 @@ JSON_RESPONSE=$(curl -s "$API_URL")
 
 # Use Python to parse the JSON (jq is not installed by default on Termux)
 # It finds the asset that contains both the python tag (cp312) and platform tag (linux_aarch64)
+#
+# Note: Python 3.13+ wheels are dual-tagged, e.g.
+#   pydantic_core-2.46.5-cp313-cp313-linux_aarch64.android_24_arm64_v8a.whl
+# (see PEP 738: https://peps.python.org/pep-0738/, and issue #4). This is a
+# simple substring check, so it still matches "linux_aarch64" whether or not
+# an additional ".android_<api>_<abi>" segment is present, no change needed
+# here for either tag style.
 READ_PYTHON_SCRIPT="
 import sys, json
 try:
