@@ -152,22 +152,47 @@ jobs:
              CC_TARGET="aarch64-linux-android${ANDROID_API}"
              NDK_LIB_ARCH="aarch64-linux-android"
              PLAT_TAG="linux_aarch64"
+             ANDROID_ABI_TAG="arm64_v8a"
           elif [ "$ARCH" == "armeabi-v7a" ]; then
              RUST_TARGET="armv7-linux-androideabi"
              CC_TARGET="armv7a-linux-androideabi${ANDROID_API}"
              NDK_LIB_ARCH="arm-linux-androideabi"
              PLAT_TAG="linux_armv7l"
+             ANDROID_ABI_TAG="armeabi_v7a"
           elif [ "$ARCH" == "x86" ]; then
              RUST_TARGET="i686-linux-android"
              CC_TARGET="i686-linux-android${ANDROID_API}"
              NDK_LIB_ARCH="i686-linux-android"
              PLAT_TAG="linux_i686"
+             ANDROID_ABI_TAG="x86"
           elif [ "$ARCH" == "x86_64" ]; then
              RUST_TARGET="x86_64-linux-android"
              CC_TARGET="x86_64-linux-android${ANDROID_API}"
              NDK_LIB_ARCH="x86_64-linux-android"
              PLAT_TAG="linux_x86_64"
+             ANDROID_ABI_TAG="x86_64"
           fi
+
+          # --- Wheel Tag Strategy ---
+          # Python 3.13 is the first CPython release with official Android
+          # support (PEP 738: https://peps.python.org/pep-0738/). Some Termux
+          # builds on 3.13+ self-identify as "Android" rather than generic
+          # "Linux", which makes pip stop treating a plain `linux_<arch>`
+          # wheel as installable (see project issue #4). Wheel filenames may
+          # carry multiple dot-separated platform tags (this is how manylinux
+          # wheels already work), and pip installs if ANY of them match, so
+          # for 3.13+ we tag with both the legacy tag and the PEP 738 tag.
+          # This is additive and never removes the legacy tag, so it can't
+          # regress installs that currently work.
+          # Python 3.9-3.12 predate PEP 738 entirely, so only the legacy tag
+          # is used there.
+          PY_MAJOR="${PY_VER%%.*}"
+          PY_MINOR="${PY_VER##*.}"
+          FINAL_PLAT_TAG="$PLAT_TAG"
+          if [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -ge 13 ]; then
+            FINAL_PLAT_TAG="${PLAT_TAG}.android_${ANDROID_API}_${ANDROID_ABI_TAG}"
+          fi
+          echo "Wheel platform tag: $FINAL_PLAT_TAG"
           
           # --- Configure Linker ---
           CLANG_WRAPPER="${CC_TARGET}-clang"
@@ -241,7 +266,7 @@ jobs:
           # --- Rename Output ---
           cd target/wheels
           OLD=$(ls *.whl)
-          NEW=$(echo "$OLD" | sed -E "s/(-[^-]+)\.whl$/-${PLAT_TAG}.whl/")
+          NEW=$(echo "$OLD" | sed -E "s/(-[^-]+)\.whl$/-${FINAL_PLAT_TAG}.whl/")
           mv "$OLD" "$NEW"
           
           echo "WHEEL_PATH=$(pwd)/$NEW" >> $GITHUB_OUTPUT
@@ -282,6 +307,7 @@ jobs:
             - **OS:** Android (Termux)
             - **Archs:** `aarch64`, `armv7`, `x86`, `x86_64`
             - **Python:** 3.9 - 3.14
+            - **Wheel tags:** Python 3.13+ wheels carry a dual tag (`linux_<arch>` + `android_${{ env.ANDROID_API }}_<abi>`, PEP 738) so pip installs correctly whether your Termux build self-identifies as Linux or Android. Python 3.9-3.12 wheels use the legacy `linux_<arch>` tag only.
             
             **Installation:**
             ```bash
@@ -292,5 +318,6 @@ jobs:
             - Built with NDK r25b (API 24)
             - Includes `RPATH` fix for Termux library location
             - Linked with `--no-as-needed` to ensure `libpython` loading
+            - Dual PEP 738 Android wheel tags on Python 3.13+ (see [issue #4](https://github.com/${{ github.repository }}/issues/4))
           files: wheels/*.whl
           make_latest: true
