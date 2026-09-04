@@ -62,7 +62,7 @@ This repository uses **GitHub Actions** to cross-compile wheels using the Androi
 
 ## 🏷️ Wheel tags & Android compatibility
 
-`pip` decides whether a wheel is installable purely by matching its filename tags against what your interpreter reports as compatible — it doesn't inspect the binary. Older Termux Python builds self-identify as plain Linux, so a `linux_{arch}` tag was enough. Starting with Python 3.13, CPython has [official Android support](https://peps.python.org/pep-0738/) (PEP 738), and some Termux 3.13+ builds self-identify as Android instead, which makes `pip` reject a `linux_{arch}`\-only wheel with `... is not a supported wheel on this platform` (tracked as [issue #4](https://github.com/Goplr/android-pydantic-core/issues/4)).
+`pip` decides whether a wheel is installable purely by matching its filename tags against what your interpreter reports as compatible — it doesn't inspect the binary. Older Termux Python builds self-identify as plain Linux, so a `linux_{arch}` tag was enough. Starting with Python 3.13, CPython has [official Android support](https://peps.python.org/pep-0738/) (PEP 738), and some Termux 3.13+ builds self-identify as Android instead, which makes `pip` reject a `linux_{arch}`\-only wheel with `... is not a supported wheel on this platform` (tracked as [issue #4](https://github.com/Eutalix/android-pydantic-core/issues/4)).
 
 Wheel filenames can carry more than one platform tag separated by dots (the same mechanism `manylinux` wheels use), and `pip`/`uv` install the wheel if *any* tag matches. So for Python 3.13+ this project tags each wheel with both:
 
