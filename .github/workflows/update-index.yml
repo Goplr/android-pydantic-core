@@ -4,6 +4,20 @@ on:
   workflow_dispatch:
   release:
     types: [published, edited, released, deleted]
+  # A release created with the default GITHUB_TOKEN (which is what
+  # build_wheels.yml's release step uses) does NOT fire the `release`
+  # event for other workflows to listen on -- GitHub suppresses that
+  # specifically to prevent recursive workflow runs. That's not something
+  # fixable from the token side without introducing and rotating a
+  # separately-managed personal access token. Watching this build
+  # workflow's own completion sidesteps the problem entirely and needs no
+  # extra secrets, so it's the trigger that actually fires for the
+  # automated releases this repo produces. The `release` trigger above is
+  # kept as a fallback in case a release is ever published some other way
+  # (e.g. manually via the GitHub UI, or with a PAT).
+  workflow_run:
+    workflows: ["Android Wheels & Release"]
+    types: [completed]
 
 permissions:
   contents: read
@@ -14,6 +28,10 @@ jobs:
   build-index:
     name: Generate PEP 503 Index
     runs-on: ubuntu-latest
+    # Only the workflow_run trigger needs a conclusion check (skip
+    # rebuilding the index if the build itself failed or was cancelled).
+    # release/workflow_dispatch always proceed.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Setup Python
         uses: actions/setup-python@v5
