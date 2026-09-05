@@ -25,6 +25,11 @@ env:
   # A value entered in the "target_version" input above (manual runs only)
   # takes priority over this default.
   TARGET_VERSION: ''
+  # Candidate Python versions to build for. The check-version job filters
+  # this list down at runtime to whichever of these the resolved
+  # pydantic-core release actually supports (see "Resolve Supported Python
+  # Versions" step), so add new Python versions here only.
+  ALL_PYTHON_VERSIONS: '["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]'
 
 permissions:
   contents: write 
@@ -36,6 +41,7 @@ jobs:
     outputs:
       version: ${{ steps.pypi.outputs.version }}
       should_build: ${{ steps.check_release.outputs.should_build }}
+      python_versions: ${{ steps.supported_pythons.outputs.python_versions }}
     steps:
       - uses: actions/checkout@v4
       
@@ -64,6 +70,53 @@ jobs:
           fi
 
           echo "version=$VER" >> $GITHUB_OUTPUT
+
+      - id: supported_pythons
+        name: Resolve Supported Python Versions
+        env:
+          PACKAGE_VERSION: ${{ steps.pypi.outputs.version }}
+        run: |
+          # pydantic-core periodically drops support for older Python
+          # versions (e.g. 2.48.0 requires >=3.10, dropping 3.9 which
+          # 2.46.5 still supported). Building from source for a Python
+          # version pydantic-core no longer supports just fails the job,
+          # so we ask PyPI what this specific pinned version's
+          # requires_python floor is, and only keep matrix entries that
+          # meet it. This is a simple ">=X.Y" floor check, matching the
+          # format pydantic-core has always used. If requires_python is
+          # missing or in a format we don't recognize, we fail OPEN
+          # (keep every configured version) rather than silently skipping
+          # everything.
+          REQUIRES_PYTHON=$(curl -s "https://pypi.org/pypi/${{ env.PACKAGE_NAME }}/$PACKAGE_VERSION/json" | python3 -c "import sys, json; print(json.load(sys.stdin)['info'].get('requires_python') or '')")
+          echo "${{ env.PACKAGE_NAME }} $PACKAGE_VERSION requires_python: '${REQUIRES_PYTHON:-<none specified>}'"
+
+          export REQUIRES_PYTHON
+          SUPPORTED=$(python3 -c "import json, os, re
+          all_versions = json.loads(os.environ['ALL_PYTHON_VERSIONS'])
+          rp = os.environ.get('REQUIRES_PYTHON', '').strip()
+          m = re.search(r'>=\s*(\d+)\.(\d+)', rp)
+          floor = (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+          supported = [v for v in all_versions if tuple(int(x) for x in v.split('.')) >= floor]
+          print(json.dumps(supported))
+          ")
+
+          export SUPPORTED
+          SKIPPED=$(python3 -c "import json, os
+          all_versions = json.loads(os.environ['ALL_PYTHON_VERSIONS'])
+          supported = json.loads(os.environ['SUPPORTED'])
+          skipped = [v for v in all_versions if v not in supported]
+          print(', '.join(skipped) if skipped else 'none')
+          ")
+
+          echo "Building for: $SUPPORTED"
+          echo "Skipping unsupported Python versions: $SKIPPED"
+
+          if [ "$SUPPORTED" == "[]" ]; then
+            echo "::error::None of the configured Python versions (${{ env.ALL_PYTHON_VERSIONS }}) satisfy requires_python '$REQUIRES_PYTHON' for ${{ env.PACKAGE_NAME }} $PACKAGE_VERSION"
+            exit 1
+          fi
+
+          echo "python_versions=$SUPPORTED" >> $GITHUB_OUTPUT
 
       - id: check_release
         name: Check if Release Exists
@@ -96,7 +149,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+        python-version: ${{ fromJson(needs.check-version.outputs.python_versions) }}
         arch: ['arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64']
     steps:
       - name: Checkout Repository
@@ -306,7 +359,7 @@ jobs:
             **Platform Support:**
             - **OS:** Android (Termux)
             - **Archs:** `aarch64`, `armv7`, `x86`, `x86_64`
-            - **Python:** 3.9 - 3.14
+            - **Python:** ${{ join(fromJson(needs.check-version.outputs.python_versions), ', ') }}
             - **Wheel tags:** Python 3.13+ wheels carry a dual tag (`linux_<arch>` + `android_${{ env.ANDROID_API }}_<abi>`, PEP 738) so pip installs correctly whether your Termux build self-identifies as Linux or Android. Python 3.9-3.12 wheels use the legacy `linux_<arch>` tag only.
             
             **Installation:**
