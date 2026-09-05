@@ -231,12 +231,12 @@ jobs:
           # support (PEP 738: https://peps.python.org/pep-0738/). Some Termux
           # builds on 3.13+ self-identify as "Android" rather than generic
           # "Linux", which makes pip stop treating a plain `linux_<arch>`
-          # wheel as installable (see project issue #4). Wheel filenames may
-          # carry multiple dot-separated platform tags (this is how manylinux
-          # wheels already work), and pip installs if ANY of them match, so
-          # for 3.13+ we tag with both the legacy tag and the PEP 738 tag.
-          # This is additive and never removes the legacy tag, so it can't
-          # regress installs that currently work.
+          # wheel as installable (see project issue #4 on Eutalix's repo).
+          # Wheel filenames may carry multiple dot-separated platform tags
+          # (this is how manylinux wheels already work), and pip installs
+          # if ANY of them match, so for 3.13+ we tag with both the legacy
+          # tag and the PEP 738 tag. This is additive and never removes the
+          # legacy tag, so it can't regress installs that currently work.
           # Python 3.9-3.12 predate PEP 738 entirely, so only the legacy tag
           # is used there.
           PY_MAJOR="${PY_VER%%.*}"
@@ -371,6 +371,6 @@ jobs:
             - Built with NDK r25b (API 24)
             - Includes `RPATH` fix for Termux library location
             - Linked with `--no-as-needed` to ensure `libpython` loading
-            - Dual PEP 738 Android wheel tags on Python 3.13+ (see [issue #4](https://github.com/${{ github.repository }}/issues/4))
+            - Dual PEP 738 Android wheel tags on Python 3.13+ (see [issue #4](https://github.com/Eutalix/android-pydantic-core/issues/4))
           files: wheels/*.whl
           make_latest: true
